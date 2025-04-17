@@ -2,8 +2,8 @@
 **/node_modules/
 
 # Builded sources
-**/build/
-**/dist/
+!**/build/
+!**/dist/
 
 # Coverage
 **/coverage/

@@ -77,7 +77,8 @@
     "clean:build": "npx shx rm -rf ./build",
     "clean:build:benchmarks": "npx shx rm -rf ./benchmarks/build",
     "clean:coverage": "npx shx rm -rf ./coverage",
-    "prepublishOnly": "npm run build && npm run gen:readme",
+    "_prepublishOnly": "npm run build && npm run gen:readme",
+    "prepublishOnly": "npm run build",
     "pretest": "npm run clean:coverage",
     "test": "npx jest --verbose --coverage",
     "test:watch": "npx jest --watch",
@@ -190,6 +191,7 @@
   },
   "publishConfig": {
     "access": "public",
-    "provenance": true
+    "provenance": false,
+    "registry": "https://npm.pkg.github.com"
   }
 }
