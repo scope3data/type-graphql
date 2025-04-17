@@ -14,24 +14,18 @@ const definition_node_1 = require("./definition-node");
 const utils_1 = require("./utils");
 class SchemaGenerator {
     static generateFromMetadata(options) {
-        console.log("in custom build");
-        console.time("generateFromMetadata");
         this.metadataStorage = Object.assign(new metadata_storage_1.MetadataStorage(), (0, getMetadataStorage_1.getMetadataStorage)());
         this.metadataStorage.build(options);
         this.checkForErrors(options);
         build_context_1.BuildContext.create(options);
-        console.time("buildTypesInfo");
         this.buildTypesInfo(options.resolvers);
-        console.timeEnd("buildTypesInfo");
         const orphanedTypes = options.orphanedTypes ?? [];
-        console.time("prebuildSchema");
         const prebuiltSchema = new graphql_1.GraphQLSchema({
             query: this.buildRootQueryType(options.resolvers),
             mutation: this.buildRootMutationType(options.resolvers),
             subscription: this.buildRootSubscriptionType(options.resolvers),
             directives: options.directives,
         });
-        console.timeEnd("prebuildSchema");
         const finalSchema = new graphql_1.GraphQLSchema({
             ...prebuiltSchema.toConfig(),
             types: this.buildOtherTypes(orphanedTypes),
@@ -44,7 +38,6 @@ class SchemaGenerator {
                 throw new errors_1.GeneratingSchemaError(errors);
             }
         }
-        console.timeEnd("generateFromMetadata");
         return finalSchema;
     }
     static checkForErrors(options) {
@@ -69,7 +62,6 @@ class SchemaGenerator {
             : defaultValueFromInitializer;
     }
     static buildTypesInfo(resolvers) {
-        console.time("unionTypesInfo");
         this.unionTypesInfo = this.metadataStorage.unions.map(unionMetadata => {
             const unionObjectTypesInfo = [];
             const typesThunk = () => {
@@ -99,8 +91,6 @@ class SchemaGenerator {
                 }),
             };
         });
-        console.timeEnd("unionTypesInfo");
-        console.time("enumTypesInfo");
         this.enumTypesInfo = this.metadataStorage.enums.map(enumMetadata => {
             const enumMap = (0, types_1.getEnumValuesMap)(enumMetadata.enumObj);
             return {
@@ -120,8 +110,6 @@ class SchemaGenerator {
                 }),
             };
         });
-        console.timeEnd("enumTypesInfo");
-        console.time("objectTypesInfo");
         this.objectTypesInfo = this.metadataStorage.objectTypes.map(objectType => {
             const objectSuperClass = Object.getPrototypeOf(objectType.target);
             const hasExtended = objectSuperClass.prototype !== undefined;
@@ -208,8 +196,6 @@ class SchemaGenerator {
                 }),
             };
         });
-        console.timeEnd("objectTypesInfo");
-        console.time("interfaceTypesInfo");
         this.interfaceTypesInfo = this.metadataStorage.interfaceTypes.map(interfaceType => {
             const interfaceSuperClass = Object.getPrototypeOf(interfaceType.target);
             const hasExtended = interfaceSuperClass.prototype !== undefined;
@@ -291,8 +277,6 @@ class SchemaGenerator {
                 }),
             };
         });
-        console.timeEnd("interfaceTypesInfo");
-        console.time("inputTypesInfo");
         this.inputTypesInfo = this.metadataStorage.inputTypes.map(inputType => {
             const objectSuperClass = Object.getPrototypeOf(inputType.target);
             const getSuperClassType = () => {
@@ -336,7 +320,6 @@ class SchemaGenerator {
                 }),
             };
         });
-        console.timeEnd("inputTypesInfo");
     }
     static buildRootQueryType(resolvers) {
         const queriesHandlers = this.filterHandlersByResolvers(this.metadataStorage.queries, resolvers);
