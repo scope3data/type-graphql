@@ -104,6 +104,11 @@ export type SchemaGeneratorOptions = {
    * Array of graphql directives
    */
   directives?: GraphQLDirective[];
+
+  /**
+   * Custom Metadata Storage
+   */
+  metadataStorage?: MetadataStorage;
 } & BuildContextOptions;
 
 export abstract class SchemaGenerator {
@@ -122,21 +127,26 @@ export abstract class SchemaGenerator {
   private static metadataStorage: MetadataStorage;
 
   static generateFromMetadata(options: SchemaGeneratorOptions): GraphQLSchema {
+    console.log("in custom build");
+    console.time("generateFromMetadata");
     this.metadataStorage = Object.assign(new MetadataStorage(), getMetadataStorage());
     this.metadataStorage.build(options);
-
     this.checkForErrors(options);
     BuildContext.create(options);
 
+    console.time("buildTypesInfo");
     this.buildTypesInfo(options.resolvers);
+    console.timeEnd("buildTypesInfo");
 
     const orphanedTypes = options.orphanedTypes ?? [];
+    console.time("prebuildSchema");
     const prebuiltSchema = new GraphQLSchema({
       query: this.buildRootQueryType(options.resolvers),
       mutation: this.buildRootMutationType(options.resolvers),
       subscription: this.buildRootSubscriptionType(options.resolvers),
       directives: options.directives,
     });
+    console.timeEnd("prebuildSchema");
     const finalSchema = new GraphQLSchema({
       ...prebuiltSchema.toConfig(),
       // run after first build to make `usedInterfaceTypes` working
@@ -152,7 +162,7 @@ export abstract class SchemaGenerator {
         throw new GeneratingSchemaError(errors);
       }
     }
-
+    console.timeEnd("generateFromMetadata");
     return finalSchema;
   }
 
@@ -195,6 +205,7 @@ export abstract class SchemaGenerator {
   }
 
   private static buildTypesInfo(resolvers: Function[]) {
+    console.time("unionTypesInfo");
     this.unionTypesInfo = this.metadataStorage.unions.map<UnionTypeInfo>(unionMetadata => {
       // use closure to capture values from this selected schema build
       const unionObjectTypesInfo: ObjectTypeInfo[] = [];
@@ -237,7 +248,9 @@ export abstract class SchemaGenerator {
         }),
       };
     });
+    console.timeEnd("unionTypesInfo");
 
+    console.time("enumTypesInfo");
     this.enumTypesInfo = this.metadataStorage.enums.map<EnumTypeInfo>(enumMetadata => {
       const enumMap = getEnumValuesMap(enumMetadata.enumObj);
       return {
@@ -258,7 +271,9 @@ export abstract class SchemaGenerator {
         }),
       };
     });
+    console.timeEnd("enumTypesInfo");
 
+    console.time("objectTypesInfo");
     this.objectTypesInfo = this.metadataStorage.objectTypes.map<ObjectTypeInfo>(objectType => {
       const objectSuperClass = Object.getPrototypeOf(objectType.target);
       const hasExtended = objectSuperClass.prototype !== undefined;
@@ -374,7 +389,9 @@ export abstract class SchemaGenerator {
         }),
       };
     });
+    console.timeEnd("objectTypesInfo");
 
+    console.time("interfaceTypesInfo");
     this.interfaceTypesInfo = this.metadataStorage.interfaceTypes.map<InterfaceTypeInfo>(
       interfaceType => {
         const interfaceSuperClass = Object.getPrototypeOf(interfaceType.target);
@@ -495,7 +512,9 @@ export abstract class SchemaGenerator {
         };
       },
     );
+    console.timeEnd("interfaceTypesInfo");
 
+    console.time("inputTypesInfo");
     this.inputTypesInfo = this.metadataStorage.inputTypes.map<InputObjectTypeInfo>(inputType => {
       const objectSuperClass = Object.getPrototypeOf(inputType.target);
       const getSuperClassType = () => {
@@ -552,6 +571,7 @@ export abstract class SchemaGenerator {
         }),
       };
     });
+    console.timeEnd("inputTypesInfo");
   }
 
   private static buildRootQueryType(resolvers: Function[]): GraphQLObjectType {
