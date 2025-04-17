@@ -303,8 +303,6 @@ export class MetadataStorage {
         this.interfaceTypesCache?.set(interfaceType.target, interfaceType);
       });
     }
-
-    console.info(`Initialized HashMap Caches`);
   }
 
   build(options: SchemaGeneratorOptions) {
@@ -316,22 +314,16 @@ export class MetadataStorage {
 
     this.initCache();
 
-    console.time("buildClassMetadata");
     this.buildClassMetadata(this.objectTypes);
     this.buildClassMetadata(this.inputTypes);
     this.buildClassMetadata(this.argumentTypes);
     this.buildClassMetadata(this.interfaceTypes);
-    console.timeEnd("buildClassMetadata");
 
-    console.time("buildFieldResolverMetadata");
     this.buildFieldResolverMetadata(this.fieldResolvers, options);
-    console.timeEnd("buildFieldResolverMetadata");
 
-    console.time("buildResolversMetadata");
     this.buildResolversMetadata(this.queries);
     this.buildResolversMetadata(this.mutations);
     this.buildResolversMetadata(this.subscriptions);
-    console.timeEnd("buildResolversMetadata");
 
     this.buildExtendedResolversMetadata();
   }
@@ -412,17 +404,6 @@ export class MetadataStorage {
           this.middlewaresByTargetAndFieldCache?.get(`${def.target}-${def.methodName}`) || [],
         ),
       );
-      // def.middlewares = [
-      //   ...mapMiddlewareMetadataToArray(
-      //     this.resolverMiddlewares.filter(middleware => middleware.target === def.target),
-      //   ),
-      //   ...mapMiddlewareMetadataToArray(
-      //     this.middlewares.filter(
-      //       middleware =>
-      //         middleware.target === def.target && def.methodName === middleware.fieldName,
-      //     ),
-      //   ),
-      // ];
 
       def.directives = (
         this.fieldDirectivesByTargetAndFieldCache?.get(`${def.target}-${def.methodName}`) || []
@@ -438,9 +419,6 @@ export class MetadataStorage {
     this.buildResolversMetadata(definitions);
     definitions.forEach(def => {
       def.roles = this.findFieldRoles(def.target, def.methodName);
-      // def.directives = this.fieldDirectives
-      //   .filter(it => it.target === def.target && it.fieldName === def.methodName)
-      //   .map(it => it.directive);
       def.directives = (
         this.fieldDirectivesByTargetAndFieldCache?.get(`${def.target}-${def.methodName}`) || []
       ).map(it => it.directive);
@@ -454,9 +432,6 @@ export class MetadataStorage {
         if (!typeClass) {
           throw new Error(`Unable to find type class for external resolver ${def.target.name}`);
         }
-        // const typeMetadata =
-        //   this.objectTypes.find(objTypeDef => objTypeDef.target === typeClass) ||
-        //   this.interfaceTypes.find(interfaceTypeDef => interfaceTypeDef.target === typeClass);
         const typeMetadata =
           this.objectTypesCache?.get(typeClass) || this.interfaceTypesCache?.get(typeClass);
         if (!typeMetadata) {
