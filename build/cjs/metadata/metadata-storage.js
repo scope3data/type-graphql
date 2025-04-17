@@ -197,7 +197,6 @@ class MetadataStorage {
                 this.interfaceTypesCache?.set(interfaceType.target, interfaceType);
             });
         }
-        console.info(`Initialized HashMap Caches`);
     }
     build(options) {
         this.classDirectives.reverse();
@@ -206,20 +205,14 @@ class MetadataStorage {
         this.classExtensions.reverse();
         this.fieldExtensions.reverse();
         this.initCache();
-        console.time("buildClassMetadata");
         this.buildClassMetadata(this.objectTypes);
         this.buildClassMetadata(this.inputTypes);
         this.buildClassMetadata(this.argumentTypes);
         this.buildClassMetadata(this.interfaceTypes);
-        console.timeEnd("buildClassMetadata");
-        console.time("buildFieldResolverMetadata");
         this.buildFieldResolverMetadata(this.fieldResolvers, options);
-        console.timeEnd("buildFieldResolverMetadata");
-        console.time("buildResolversMetadata");
         this.buildResolversMetadata(this.queries);
         this.buildResolversMetadata(this.mutations);
         this.buildResolversMetadata(this.subscriptions);
-        console.timeEnd("buildResolversMetadata");
         this.buildExtendedResolversMetadata();
     }
     clear() {
