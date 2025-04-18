@@ -64,10 +64,10 @@ export class SchemaGenerator {
             const typesThunk = () => {
                 unionObjectTypesInfo.push(...unionMetadata
                     .getClassTypes()
-                    .map(objectTypeCls => this.objectTypesInfo.find(type => type.target === objectTypeCls)));
+                    .map(objectTypeCls => this.objectTypesInfoMap.get(objectTypeCls)));
                 return unionObjectTypesInfo.map(it => it.type);
             };
-            return {
+            const unionType = {
                 unionSymbol: unionMetadata.symbol,
                 type: new GraphQLUnionType({
                     name: unionMetadata.name,
@@ -87,6 +87,8 @@ export class SchemaGenerator {
                         },
                 }),
             };
+            this.unionTypesInfoMap.set(unionMetadata.symbol, unionType);
+            return unionType;
         });
         this.enumTypesInfo = this.metadataStorage.enums.map(enumMetadata => {
             const enumMap = getEnumValuesMap(enumMetadata.enumObj);
@@ -111,12 +113,12 @@ export class SchemaGenerator {
             const objectSuperClass = Object.getPrototypeOf(objectType.target);
             const hasExtended = objectSuperClass.prototype !== undefined;
             const getSuperClassType = () => {
-                const superClassTypeInfo = this.objectTypesInfo.find(type => type.target === objectSuperClass) ??
-                    this.interfaceTypesInfo.find(type => type.target === objectSuperClass);
+                const superClassTypeInfo = this.objectTypesInfoMap.get(objectSuperClass) ??
+                    this.interfaceTypesInfoMap.get(objectSuperClass);
                 return superClassTypeInfo ? superClassTypeInfo.type : undefined;
             };
             const interfaceClasses = objectType.interfaceClasses || [];
-            return {
+            const objectTypeInfo = {
                 metadata: objectType,
                 target: objectType.target,
                 type: new GraphQLObjectType({
@@ -126,7 +128,7 @@ export class SchemaGenerator {
                     extensions: objectType.extensions,
                     interfaces: () => {
                         let interfaces = interfaceClasses.map(interfaceClass => {
-                            const interfaceTypeInfo = this.interfaceTypesInfo.find(info => info.target === interfaceClass);
+                            const interfaceTypeInfo = this.interfaceTypesInfoMap.get(interfaceClass);
                             if (!interfaceTypeInfo) {
                                 throw new Error(`Cannot find interface type metadata for class '${interfaceClass.name}' ` +
                                     `provided in 'implements' option for '${objectType.target.name}' object type class. ` +
@@ -192,6 +194,8 @@ export class SchemaGenerator {
                     },
                 }),
             };
+            this.objectTypesInfoMap.set(objectType.target, objectTypeInfo);
+            return objectTypeInfo;
         });
         this.interfaceTypesInfo = this.metadataStorage.interfaceTypes.map(interfaceType => {
             const interfaceSuperClass = Object.getPrototypeOf(interfaceType.target);
@@ -205,7 +209,7 @@ export class SchemaGenerator {
                 objectType.interfaceClasses.includes(interfaceType.target))
                 .map(objectType => objectType.target);
             const implementingObjectTypesInfo = this.objectTypesInfo.filter(objectTypesInfo => implementingObjectTypesTargets.includes(objectTypesInfo.target));
-            return {
+            const interfaceTypeInfo = {
                 metadata: interfaceType,
                 target: interfaceType.target,
                 type: new GraphQLInterfaceType({
@@ -213,7 +217,7 @@ export class SchemaGenerator {
                     description: interfaceType.description,
                     astNode: getInterfaceTypeDefinitionNode(interfaceType.name, interfaceType.directives),
                     interfaces: () => {
-                        let interfaces = (interfaceType.interfaceClasses || []).map(interfaceClass => this.interfaceTypesInfo.find(info => info.target === interfaceClass).type);
+                        let interfaces = (interfaceType.interfaceClasses || []).map(interfaceClass => this.interfaceTypesInfoMap.get(interfaceClass).type);
                         if (hasExtended) {
                             const superClass = getSuperClassType();
                             if (superClass) {
@@ -273,15 +277,17 @@ export class SchemaGenerator {
                         },
                 }),
             };
+            this.interfaceTypesInfoMap.set(interfaceType.target, interfaceTypeInfo);
+            return interfaceTypeInfo;
         });
         this.inputTypesInfo = this.metadataStorage.inputTypes.map(inputType => {
             const objectSuperClass = Object.getPrototypeOf(inputType.target);
             const getSuperClassType = () => {
-                const superClassTypeInfo = this.inputTypesInfo.find(type => type.target === objectSuperClass);
+                const superClassTypeInfo = this.inputTypesInfoMap.get(objectSuperClass);
                 return superClassTypeInfo ? superClassTypeInfo.type : undefined;
             };
             const inputInstance = new inputType.target();
-            return {
+            const inputTypeInfo = {
                 target: inputType.target,
                 type: new GraphQLInputObjectType({
                     name: inputType.name,
@@ -316,6 +322,8 @@ export class SchemaGenerator {
                     astNode: getInputObjectTypeDefinitionNode(inputType.name, inputType.directives),
                 }),
             };
+            this.inputTypesInfoMap.set(inputType.target, inputTypeInfo);
+            return inputTypeInfo;
         });
     }
     static buildRootQueryType(resolvers) {
@@ -567,8 +575,12 @@ export class SchemaGenerator {
     }
 }
 SchemaGenerator.objectTypesInfo = [];
+SchemaGenerator.objectTypesInfoMap = new Map();
 SchemaGenerator.inputTypesInfo = [];
+SchemaGenerator.inputTypesInfoMap = new Map();
 SchemaGenerator.interfaceTypesInfo = [];
+SchemaGenerator.interfaceTypesInfoMap = new Map();
 SchemaGenerator.enumTypesInfo = [];
 SchemaGenerator.unionTypesInfo = [];
+SchemaGenerator.unionTypesInfoMap = new Map();
 SchemaGenerator.usedInterfaceTypes = new Set();
