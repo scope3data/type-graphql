@@ -20,10 +20,14 @@ export type SchemaGeneratorOptions = {
 } & BuildContextOptions;
 export declare abstract class SchemaGenerator {
     private static objectTypesInfo;
+    private static objectTypesInfoMap;
     private static inputTypesInfo;
+    private static inputTypesInfoMap;
     private static interfaceTypesInfo;
+    private static interfaceTypesInfoMap;
     private static enumTypesInfo;
     private static unionTypesInfo;
+    private static unionTypesInfoMap;
     private static usedInterfaceTypes;
     private static metadataStorage;
     static generateFromMetadata(options: SchemaGeneratorOptions): GraphQLSchema;
