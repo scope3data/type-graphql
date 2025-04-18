@@ -1,5 +1,4 @@
 import { type GraphQLDirective, GraphQLSchema } from "graphql";
-import { MetadataStorage } from "../metadata/metadata-storage.js";
 import { type BuildContextOptions } from "./build-context.js";
 export type SchemaGeneratorOptions = {
     /**
@@ -18,10 +17,6 @@ export type SchemaGeneratorOptions = {
      * Array of graphql directives
      */
     directives?: GraphQLDirective[];
-    /**
-     * Custom Metadata Storage
-     */
-    metadataStorage?: MetadataStorage;
 } & BuildContextOptions;
 export declare abstract class SchemaGenerator {
     private static objectTypesInfo;
