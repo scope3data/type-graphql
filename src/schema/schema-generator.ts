@@ -109,6 +109,8 @@ export type SchemaGeneratorOptions = {
 export abstract class SchemaGenerator {
   private static objectTypesInfo: ObjectTypeInfo[] = [];
 
+  // private static objectTypesInfoMap = new Map<Function, ObjectTypeInfo>();
+
   private static inputTypesInfo: InputObjectTypeInfo[] = [];
 
   private static interfaceTypesInfo: InterfaceTypeInfo[] = [];
