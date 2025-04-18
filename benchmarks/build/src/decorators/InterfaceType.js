@@ -1,0 +1,18 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.InterfaceType = InterfaceType;
+const decorators_1 = require("../helpers/decorators");
+const getMetadataStorage_1 = require("../metadata/getMetadataStorage");
+function InterfaceType(nameOrOptions, maybeOptions) {
+    const { name, options } = (0, decorators_1.getNameDecoratorParams)(nameOrOptions, maybeOptions);
+    const interfaceClasses = options.implements && [].concat(options.implements);
+    return target => {
+        (0, getMetadataStorage_1.getMetadataStorage)().collectInterfaceMetadata({
+            name: name || target.name,
+            target,
+            interfaceClasses,
+            autoRegisteringDisabled: options.autoRegisterImplementations === false,
+            ...options,
+        });
+    };
+}
