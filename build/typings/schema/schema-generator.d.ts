@@ -21,9 +21,7 @@ export type SchemaGeneratorOptions = {
 export declare abstract class SchemaGenerator {
     private static objectTypesInfo;
     private static objectTypesInfoMap;
-    private static inputTypesInfo;
     private static inputTypesInfoMap;
-    private static interfaceTypesInfo;
     private static interfaceTypesInfoMap;
     private static enumTypesInfo;
     private static unionTypesInfo;
@@ -46,5 +44,7 @@ export declare abstract class SchemaGenerator {
     private static getGraphQLInputType;
     private static getResolveTypeFunction;
     private static filterHandlersByResolvers;
+    private static filterOrphanedInterfaceTypes;
+    private static filterOrphanedInputTypes;
     private static filterTypesInfoByOrphanedTypesAndExtractType;
 }

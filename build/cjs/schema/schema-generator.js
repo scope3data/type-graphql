@@ -200,11 +200,11 @@ class SchemaGenerator {
             this.objectTypesInfoMap.set(objectType.target, objectTypeInfo);
             return objectTypeInfo;
         });
-        this.interfaceTypesInfo = this.metadataStorage.interfaceTypes.map(interfaceType => {
+        this.metadataStorage.interfaceTypes.forEach(interfaceType => {
             const interfaceSuperClass = Object.getPrototypeOf(interfaceType.target);
             const hasExtended = interfaceSuperClass.prototype !== undefined;
             const getSuperClassType = () => {
-                const superClassTypeInfo = this.interfaceTypesInfo.find(type => type.target === interfaceSuperClass);
+                const superClassTypeInfo = this.interfaceTypesInfoMap.get(interfaceSuperClass);
                 return superClassTypeInfo ? superClassTypeInfo.type : undefined;
             };
             const implementingObjectTypesTargets = this.metadataStorage.objectTypes
@@ -281,9 +281,8 @@ class SchemaGenerator {
                 }),
             };
             this.interfaceTypesInfoMap.set(interfaceType.target, interfaceTypeInfo);
-            return interfaceTypeInfo;
         });
-        this.inputTypesInfo = this.metadataStorage.inputTypes.map(inputType => {
+        this.metadataStorage.inputTypes.forEach(inputType => {
             const objectSuperClass = Object.getPrototypeOf(inputType.target);
             const getSuperClassType = () => {
                 const superClassTypeInfo = this.inputTypesInfoMap.get(objectSuperClass);
@@ -326,7 +325,6 @@ class SchemaGenerator {
                 }),
             };
             this.inputTypesInfoMap.set(inputType.target, inputTypeInfo);
-            return inputTypeInfo;
         });
     }
     static buildRootQueryType(resolvers) {
@@ -358,7 +356,7 @@ class SchemaGenerator {
     }
     static buildOtherTypes(orphanedTypes) {
         const autoRegisteredObjectTypesInfo = this.objectTypesInfo.filter(typeInfo => typeInfo.metadata.interfaceClasses?.some(interfaceClass => {
-            const implementedInterfaceInfo = this.interfaceTypesInfo.find(it => it.target === interfaceClass);
+            const implementedInterfaceInfo = this.interfaceTypesInfoMap.get(interfaceClass);
             if (!implementedInterfaceInfo) {
                 return false;
             }
@@ -372,8 +370,8 @@ class SchemaGenerator {
         }));
         return [
             ...this.filterTypesInfoByOrphanedTypesAndExtractType(this.objectTypesInfo, orphanedTypes),
-            ...this.filterTypesInfoByOrphanedTypesAndExtractType(this.interfaceTypesInfo, orphanedTypes),
-            ...this.filterTypesInfoByOrphanedTypesAndExtractType(this.inputTypesInfo, orphanedTypes),
+            ...this.filterOrphanedInterfaceTypes(orphanedTypes),
+            ...this.filterOrphanedInputTypes(orphanedTypes),
             ...autoRegisteredObjectTypesInfo.map(typeInfo => typeInfo.type),
         ];
     }
@@ -515,7 +513,7 @@ class SchemaGenerator {
             }
         }
         if (!gqlType) {
-            const interfaceType = this.interfaceTypesInfo.find(it => it.target === type);
+            const interfaceType = this.interfaceTypesInfoMap.get(type);
             if (interfaceType) {
                 this.usedInterfaceTypes.add(interfaceType.target);
                 gqlType = interfaceType.type;
@@ -543,7 +541,7 @@ class SchemaGenerator {
         let gqlType;
         gqlType = (0, types_1.convertTypeIfScalar)(type);
         if (!gqlType) {
-            const inputType = this.inputTypesInfo.find(it => it.target === type);
+            const inputType = this.inputTypesInfoMap.get(type);
             if (inputType) {
                 gqlType = inputType.type;
             }
@@ -573,6 +571,24 @@ class SchemaGenerator {
     static filterHandlersByResolvers(handlers, resolvers) {
         return handlers.filter(query => resolvers.includes(query.target));
     }
+    static filterOrphanedInterfaceTypes(orphanedTypes) {
+        const result = [];
+        for (const typeInfo of this.interfaceTypesInfoMap.values()) {
+            if (orphanedTypes.includes(typeInfo.target)) {
+                result.push(typeInfo.type);
+            }
+        }
+        return result;
+    }
+    static filterOrphanedInputTypes(orphanedTypes) {
+        const result = [];
+        for (const typeInfo of this.inputTypesInfoMap.values()) {
+            if (orphanedTypes.includes(typeInfo.target)) {
+                result.push(typeInfo.type);
+            }
+        }
+        return result;
+    }
     static filterTypesInfoByOrphanedTypesAndExtractType(typesInfo, orphanedTypes) {
         return typesInfo.filter(it => orphanedTypes.includes(it.target)).map(it => it.type);
     }
@@ -580,9 +596,7 @@ class SchemaGenerator {
 exports.SchemaGenerator = SchemaGenerator;
 SchemaGenerator.objectTypesInfo = [];
 SchemaGenerator.objectTypesInfoMap = new Map();
-SchemaGenerator.inputTypesInfo = [];
 SchemaGenerator.inputTypesInfoMap = new Map();
-SchemaGenerator.interfaceTypesInfo = [];
 SchemaGenerator.interfaceTypesInfoMap = new Map();
 SchemaGenerator.enumTypesInfo = [];
 SchemaGenerator.unionTypesInfo = [];
