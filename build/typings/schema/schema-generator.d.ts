@@ -19,11 +19,8 @@ export type SchemaGeneratorOptions = {
     directives?: GraphQLDirective[];
 } & BuildContextOptions;
 export declare abstract class SchemaGenerator {
-    private static objectTypesInfo;
     private static objectTypesInfoMap;
-    private static inputTypesInfo;
     private static inputTypesInfoMap;
-    private static interfaceTypesInfo;
     private static interfaceTypesInfoMap;
     private static enumTypesInfo;
     private static unionTypesInfo;
@@ -46,5 +43,7 @@ export declare abstract class SchemaGenerator {
     private static getGraphQLInputType;
     private static getResolveTypeFunction;
     private static filterHandlersByResolvers;
-    private static filterTypesInfoByOrphanedTypesAndExtractType;
+    private static filterOrphanedInterfaceTypes;
+    private static filterOrphanedInputTypes;
+    private static filterOrphanedObjectTypes;
 }
