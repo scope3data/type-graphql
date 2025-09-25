@@ -107,8 +107,6 @@ export type SchemaGeneratorOptions = {
 } & BuildContextOptions;
 
 export abstract class SchemaGenerator {
-  private static objectTypesInfo: ObjectTypeInfo[] = [];
-
   private static objectTypesInfoMap = new Map<Function, ObjectTypeInfo>();
 
   private static inputTypesInfoMap = new Map<Function, InputObjectTypeInfo>();
@@ -263,7 +261,7 @@ export abstract class SchemaGenerator {
       };
     });
 
-    this.objectTypesInfo = this.metadataStorage.objectTypes.map<ObjectTypeInfo>(objectType => {
+    this.metadataStorage.objectTypes.forEach(objectType => {
       const objectSuperClass = Object.getPrototypeOf(objectType.target);
       const hasExtended = objectSuperClass.prototype !== undefined;
       const getSuperClassType = () => {
@@ -376,7 +374,6 @@ export abstract class SchemaGenerator {
         }),
       };
       this.objectTypesInfoMap.set(objectType.target, objectTypeInfo);
-      return objectTypeInfo;
     });
     this.metadataStorage.interfaceTypes.forEach(interfaceType => {
       const interfaceSuperClass = Object.getPrototypeOf(interfaceType.target);
@@ -394,9 +391,9 @@ export abstract class SchemaGenerator {
             objectType.interfaceClasses.includes(interfaceType.target),
         )
         .map(objectType => objectType.target);
-      const implementingObjectTypesInfo = this.objectTypesInfo.filter(objectTypesInfo =>
-        implementingObjectTypesTargets.includes(objectTypesInfo.target),
-      );
+      const implementingObjectTypesInfo = implementingObjectTypesTargets
+        .map(target => this.objectTypesInfoMap.get(target)!)
+        .filter(info => info !== undefined);
 
       const interfaceTypeInfo = {
         metadata: interfaceType,
@@ -591,23 +588,28 @@ export abstract class SchemaGenerator {
   }
 
   private static buildOtherTypes(orphanedTypes: Function[]): GraphQLNamedType[] {
-    const autoRegisteredObjectTypesInfo = this.objectTypesInfo.filter(typeInfo =>
-      typeInfo.metadata.interfaceClasses?.some(interfaceClass => {
-        const implementedInterfaceInfo = this.interfaceTypesInfoMap.get(interfaceClass);
-        if (!implementedInterfaceInfo) {
-          return false;
-        }
-        if (implementedInterfaceInfo.metadata.autoRegisteringDisabled) {
-          return false;
-        }
-        if (!this.usedInterfaceTypes.has(interfaceClass)) {
-          return false;
-        }
-        return true;
-      }),
-    );
+    const autoRegisteredObjectTypesInfo: ObjectTypeInfo[] = [];
+    for (const typeInfo of this.objectTypesInfoMap.values()) {
+      if (
+        typeInfo.metadata.interfaceClasses?.some(interfaceClass => {
+          const implementedInterfaceInfo = this.interfaceTypesInfoMap.get(interfaceClass);
+          if (!implementedInterfaceInfo) {
+            return false;
+          }
+          if (implementedInterfaceInfo.metadata.autoRegisteringDisabled) {
+            return false;
+          }
+          if (!this.usedInterfaceTypes.has(interfaceClass)) {
+            return false;
+          }
+          return true;
+        })
+      ) {
+        autoRegisteredObjectTypesInfo.push(typeInfo);
+      }
+    }
     return [
-      ...this.filterTypesInfoByOrphanedTypesAndExtractType(this.objectTypesInfo, orphanedTypes),
+      ...this.filterOrphanedObjectTypes(orphanedTypes),
       ...this.filterOrphanedInterfaceTypes(orphanedTypes),
       ...this.filterOrphanedInputTypes(orphanedTypes),
       ...autoRegisteredObjectTypesInfo.map(typeInfo => typeInfo.type),
@@ -821,7 +823,7 @@ export abstract class SchemaGenerator {
     let gqlType: GraphQLOutputType | undefined;
     gqlType = convertTypeIfScalar(type);
     if (!gqlType) {
-      const objectType = this.objectTypesInfo.find(it => it.target === (type as Function));
+      const objectType = this.objectTypesInfoMap.get(type as Function);
       if (objectType) {
         gqlType = objectType.type;
       }
@@ -930,10 +932,13 @@ export abstract class SchemaGenerator {
     return result;
   }
 
-  private static filterTypesInfoByOrphanedTypesAndExtractType(
-    typesInfo: Array<ObjectTypeInfo | InterfaceTypeInfo | InputObjectTypeInfo>,
-    orphanedTypes: Function[],
-  ) {
-    return typesInfo.filter(it => orphanedTypes.includes(it.target)).map(it => it.type);
+  private static filterOrphanedObjectTypes(orphanedTypes: Function[]): GraphQLNamedType[] {
+    const result: GraphQLNamedType[] = [];
+    for (const typeInfo of this.objectTypesInfoMap.values()) {
+      if (orphanedTypes.includes(typeInfo.target)) {
+        result.push(typeInfo.type);
+      }
+    }
+    return result;
   }
 }
