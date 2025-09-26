@@ -2,13 +2,11 @@ name: check
 
 on:
   push:
-    branches:
-      - master
     tags:
       - v*
   pull_request:
     branches:
-      - master
+      - main
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -45,7 +43,7 @@ jobs:
         uses: pozetroninc/github-action-get-latest-release@master
         id: version_v_github
         with:
-          owner: MichalLytek
+          owner: scope3data
           repo: type-graphql
           excludes: prerelease, draft
 
