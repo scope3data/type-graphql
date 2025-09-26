@@ -43,8 +43,14 @@ jobs:
       - name: Get latest release
         id: latest_release
         run: |
-          # Get the latest release tag, fallback to v0.0.0 if none exists
-          latest_tag=$(git tag --sort=-version:refname | head -n1 || echo "v0.0.0")
+          # Get the latest release tag, fallback to package.json version if none exists
+          echo "All tags:"
+          git tag --sort=-version:refname
+          latest_tag=$(git tag --sort=-version:refname | head -n1)
+          if [ -z "$latest_tag" ]; then
+            pkg_version=$(node -p "require('./package.json').version")
+            latest_tag="v$pkg_version"
+          fi
           echo "latest_tag=$latest_tag" >> $GITHUB_OUTPUT
           echo "Latest release tag: $latest_tag"
 
