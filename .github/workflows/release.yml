@@ -67,6 +67,10 @@ jobs:
         run: |
           npm ci
 
+      - name: Configure npm authentication
+        run: |
+          echo "//registry.npmjs.org/:_authToken=\${NPM_TOKEN}" > .npmrc
+
       - name: Prepare package
         run: |
           npm run prepublishOnly
@@ -100,7 +104,7 @@ jobs:
 
       - name: Publish
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
           TYPE_GRAPHQL_PRERELEASE: ${{ steps.prerelease.outputs.value }}
         run: |
           _tag=
