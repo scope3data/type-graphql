@@ -1,6 +1,6 @@
 {
   "name": "@scope3data/type-graphql",
-  "version": "2.0.2",
+  "version": "2.0.1",
   "private": false,
   "description": "Create GraphQL schema and resolvers with TypeScript, using classes and decorators!",
   "keywords": [
