@@ -82,13 +82,13 @@ jobs:
       - name: Format commit messages for release
         id: changelog
         run: |
-          COMMITS="${{ github.event.client_payload.commits }}"
+          COMMITS_B64="${{ github.event.client_payload.commits_b64 }}"
 
-          if [ -z "$COMMITS" ]; then
+          if [ -z "$COMMITS_B64" ]; then
             echo "No commits provided in client_payload"
             FORMATTED_COMMITS="No changes listed"
           else
-            FORMATTED_COMMITS=$(echo "$COMMITS" | sed 's/\\n/\n/g')
+            FORMATTED_COMMITS=$(echo "$COMMITS_B64" | base64 -d)
           fi
 
           RELEASE_BODY=$(printf "## Changes in this release:\n\n%s\n\nReleased as %s" "$FORMATTED_COMMITS" "${{ github.event.client_payload.tag }}")

@@ -121,20 +121,22 @@ jobs:
           LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
 
           if [[ -z "$LAST_TAG" ]]; then
-            COMMITS=$(git log --pretty=format:"- %s" --no-merges)
+            git log --pretty=format:"- %s" --no-merges > /tmp/commits.txt
           else
-            COMMITS=$(git log ${LAST_TAG}..HEAD --pretty=format:"- %s" --no-merges)
+            git log ${LAST_TAG}..HEAD --pretty=format:"- %s" --no-merges > /tmp/commits.txt
           fi
 
           echo "Raw commits:"
-          echo "$COMMITS"
-          COMMITS_ESCAPED=$(echo "$COMMITS" | sed ':a;N;$!ba;s/\n/\\n/g' | sed 's/"/\\"/g')
+          cat /tmp/commits.txt
+
+          # Use base64 encoding to safely pass commit messages through JSON
+          COMMITS_B64=$(base64 -w 0 /tmp/commits.txt)
 
           echo "commits<<EOF" >> $GITHUB_OUTPUT
-          echo "$COMMITS" >> $GITHUB_OUTPUT
+          cat /tmp/commits.txt >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-          echo "commits_json=$COMMITS_ESCAPED" >> $GITHUB_OUTPUT
+          echo "commits_b64=$COMMITS_B64" >> $GITHUB_OUTPUT
 
       - name: Amend commit with version
         run: |
@@ -159,12 +161,12 @@ jobs:
           git tag -a "${TAG}" -m "${TAG_MESSAGE}"
           git push origin "${TAG}"
 
-          COMMIT_MESSAGES_JSON="${{ steps.commit_messages.outputs.commits_json }}"
+          COMMITS_B64="${{ steps.commit_messages.outputs.commits_b64 }}"
           curl -X POST \
             -H "Accept: application/vnd.github.v3+json" \
             -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             https://api.github.com/repos/${{ github.repository }}/dispatches \
-            -d "{\"event_type\":\"release\",\"client_payload\":{\"tag\":\"${TAG}\",\"version\":\"${NEW_VERSION}\",\"commits\":\"${COMMIT_MESSAGES_JSON}\"}}"
+            -d "{\"event_type\":\"release\",\"client_payload\":{\"tag\":\"${TAG}\",\"version\":\"${NEW_VERSION}\",\"commits_b64\":\"${COMMITS_B64}\"}}"
 
       - name: Output summary
         run: |
