@@ -108,12 +108,25 @@ jobs:
       - name: Collect commit messages for release
         id: commit_messages
         run: |
+          # Smart changelog logic: use tags after first release, fork baseline for first release
+          FORK_BASELINE="c4c63900"
           LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
 
-          if [[ -z "$LAST_TAG" ]]; then
-            git log --pretty=format:"- %s" --no-merges > /tmp/commits.txt
+          if [[ -n "$LAST_TAG" ]]; then
+            # Check if the last tag is after our fork baseline (clean tag)
+            if git merge-base --is-ancestor ${FORK_BASELINE} ${LAST_TAG} 2>/dev/null; then
+              # We have a clean tag, use normal tag-based logic
+              git log ${LAST_TAG}..HEAD --pretty=format:"- %s" --no-merges > /tmp/commits.txt
+              echo "Using clean tag-based range: ${LAST_TAG}..HEAD"
+            else
+              # Tag exists but is from original repo, use fork baseline
+              git log ${FORK_BASELINE}..HEAD --pretty=format:"- %s" --no-merges > /tmp/commits.txt
+              echo "Using fork baseline range: ${FORK_BASELINE}..HEAD"
+            fi
           else
-            git log ${LAST_TAG}..HEAD --pretty=format:"- %s" --no-merges > /tmp/commits.txt
+            # No tags exist, use fork baseline
+            git log ${FORK_BASELINE}..HEAD --pretty=format:"- %s" --no-merges > /tmp/commits.txt
+            echo "No tags found, using fork baseline: ${FORK_BASELINE}..HEAD"
           fi
 
           echo "Raw commits:"
