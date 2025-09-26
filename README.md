@@ -5,7 +5,7 @@
 
 ---
 
-## Performance-Optimized Fork by Scope3
+## Performance-Optimized Fork by [Scope3](https://scope3.com/home)
 
 > **Context**: This is a high-performance fork maintained by [Scope3](https://github.com/scope3data) with significant optimization improvements. Our changes have been submitted as [PR #1779](https://github.com/MichalLytek/type-graphql/pull/1779) to the original repository but remain unmerged after 6+ months.
 
@@ -27,8 +27,14 @@
 # Add to .npmrc
 @scope3data:registry=https://npm.pkg.github.com
 
-# Install the package
+# Install with npm
 npm install @scope3data/type-graphql
+
+# Install with Yarn
+yarn add @scope3data/type-graphql
+
+# Install with PNPM
+pnpm add @scope3data/type-graphql
 ```
 
 ### What's Coming
