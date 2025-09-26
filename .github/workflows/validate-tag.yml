@@ -1,0 +1,74 @@
+name: validate-tag
+
+on:
+  push:
+    tags:
+      - v*
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate Tag and Version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check Git tag format
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          if ! printf "%s\n" "$TAG_NAME" | grep -q -P '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(alpha|beta|rc)\.(0|[1-9][0-9]*))?$'; then
+            printf '[ERROR]: Git tag (%s) has invalid format\n' "$TAG_NAME"
+            exit 1
+          fi
+          echo "✅ Tag format is valid: $TAG_NAME"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Read package.json version
+        id: package_version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Package version: $VERSION"
+
+      - name: Extract tag version
+        id: tag_version
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          VERSION="${TAG_NAME#v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Tag version: $VERSION"
+
+      - name: Compare package.json with Git tag
+        run: |
+          PACKAGE_VERSION="${{ steps.package_version.outputs.version }}"
+          TAG_VERSION="${{ steps.tag_version.outputs.version }}"
+
+          if [ "$PACKAGE_VERSION" != "$TAG_VERSION" ]; then
+            printf '[ERROR]: package.json version (%s) != Git tag version (%s)\n' "$PACKAGE_VERSION" "$TAG_VERSION"
+            exit 1
+          fi
+
+          echo "✅ Version consistency verified: $PACKAGE_VERSION"
+
+      - name: Summary
+        run: |
+          echo "## ✅ Tag Validation Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tag**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version**: ${{ steps.tag_version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Format**: Valid semver" >> $GITHUB_STEP_SUMMARY
+          echo "- **Consistency**: package.json matches tag" >> $GITHUB_STEP_SUMMARY
