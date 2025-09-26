@@ -19,13 +19,13 @@ function escapeRegExp(string: string): string {
   return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-const enum Analyze {
+enum Analyze {
   DOCS = "docs",
   README = "readme",
 }
 
-const gitHubUrl = `https://github.com/MichalLytek/type-graphql/tree`;
-const gitHubUrlRaw = `https://raw.githubusercontent.com/MichalLytek/type-graphql`;
+const gitHubUrl = `https://github.com/scope3data/type-graphql/tree`;
+const gitHubUrlRaw = `https://raw.githubusercontent.com/scope3data/type-graphql`;
 const rootPath = path.resolve(`${__dirname}/..`);
 const argv = yargs(hideBin(process.argv))
   .strict()
