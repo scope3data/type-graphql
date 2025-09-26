@@ -115,7 +115,7 @@ jobs:
         id: commit_messages
         run: |
           # Smart changelog logic: use tags after first release, fork baseline for first release
-          FORK_BASELINE="c4c63900"
+          FORK_BASELINE="2305f78c"
 
           # Ensure we have all tags
           git fetch --tags origin
