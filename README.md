@@ -11,15 +11,44 @@
 
 ### Performance Improvements
 
-**Problem**: Schema generation was exponentially slow for large schemas, taking 30+ seconds with 3k-15k metadata objects due to repeated O(n) array lookups.
+#### What’s Different in the Scope3 Fork?
 
-**Solution**: Implemented HashMap-based caching system converting O(n) operations to O(1) lookups throughout the metadata build process.
+This fork introduces a major refactor of the TypeGraphQL metadata build process, focused on dramatically improving performance for large schemas. It works very well! Scope3 has been running this fork in production for over 6 months, dropping our schema generation time from 4-5 minutes to under 10 seconds in our K8s deployments.
 
-**Results**:
+**Problem:**  
+Schema generation in the upstream project was exponentially slow for large schemas, taking 30+ seconds with 3k-15k metadata objects due to repeated O(n) array `.filter()` lookups.
 
-- `buildClassMetadata`: 31.3s → 268ms (116x faster)
-- `buildFieldResolverMetadata`: 314ms → 39ms (8x faster)
-- `buildResolversMetadata`: 1.4s → 126ms (11x faster)
+**Scope3 Solution:**  
+We replaced all repeated array lookups with O(1) HashMap-based caching.
+
+- Added cache initialization for all major metadata types (object types, fields, params, middlewares, directives, resolver classes, etc.).
+- All metadata lookups now use these caches instead of array `.filter()` calls.
+- Refactored resolver and field metadata construction to leverage these caches.
+
+**Technical Details:**
+
+- Introduced `Map` caches for object types, fields, params, middlewares, directives, and resolver classes.
+- Added an `initCache()` method to populate these caches before schema building.
+- All metadata construction logic now uses these caches for instant lookup.
+
+**Performance Impact:**
+
+- Schema generation time reduced from tens of seconds to milliseconds for large schemas.
+- Example:
+  - `buildClassMetadata`: 31.3s → 268ms (116x faster)
+  - `buildFieldResolverMetadata`: 314ms → 39ms (8x faster)
+  - `buildResolversMetadata`: 1.4s → 126ms (11x faster)
+
+**Compatibility:**
+
+- The fork remains 100% backward compatible with the original TypeGraphQL API.
+- All original TypeGraphQL tests pass with these changes.
+- Scope3 has been running this fork in production for over 6 months.
+- All recent upstream changes are documentation-only (sponsor updates).
+
+---
+
+If you want more technical details or code samples, see the source or reach out to Scope3!
 
 ### Installation
 
