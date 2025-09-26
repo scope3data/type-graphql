@@ -40,6 +40,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          fetch-tags: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -110,9 +111,21 @@ jobs:
         run: |
           # Smart changelog logic: use tags after first release, fork baseline for first release
           FORK_BASELINE="c4c63900"
-          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
 
-          if [[ -n "$LAST_TAG" ]]; then
+          # Ensure we have all tags
+          git fetch --tags origin
+
+          # Debug: Show available tags
+          echo "Available tags:"
+          git tag --sort=-version:refname | head -5
+
+          LAST_TAG=$(git tag --sort=-version:refname | head -1 2>/dev/null || echo "")
+
+          # Debug: Show what we detected
+          echo "Detected last tag: '$LAST_TAG'"
+          echo "Fork baseline: '$FORK_BASELINE'"
+
+          if [[ -n "$LAST_TAG" && "$LAST_TAG" != "" ]]; then
             # Check if the last tag is after our fork baseline (clean tag)
             if git merge-base --is-ancestor ${FORK_BASELINE} ${LAST_TAG} 2>/dev/null; then
               # We have a clean tag, use normal tag-based logic
@@ -135,9 +148,10 @@ jobs:
           # Use base64 encoding to safely pass commit messages through JSON
           COMMITS_B64=$(base64 -w 0 /tmp/commits.txt)
 
-          echo "commits<<EOF" >> $GITHUB_OUTPUT
+          # Set output using a safer delimiter approach
+          echo "commits<<COMMIT_DELIMITER" >> $GITHUB_OUTPUT
           cat /tmp/commits.txt >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          echo "COMMIT_DELIMITER" >> $GITHUB_OUTPUT
 
           echo "commits_b64=$COMMITS_B64" >> $GITHUB_OUTPUT
 
