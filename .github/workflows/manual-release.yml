@@ -16,6 +16,11 @@ on:
         description: "Release description (optional)"
         required: false
         type: string
+      dry_run:
+        description: "Dry run (test without making changes)"
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: ${{ github.workflow }}-main
@@ -148,11 +153,7 @@ jobs:
           # Use base64 encoding to safely pass commit messages through JSON
           COMMITS_B64=$(base64 -w 0 /tmp/commits.txt)
 
-          # Set output using a safer delimiter approach
-          echo "commits<<COMMIT_DELIMITER" >> $GITHUB_OUTPUT
-          cat /tmp/commits.txt >> $GITHUB_OUTPUT
-          echo "COMMIT_DELIMITER" >> $GITHUB_OUTPUT
-
+          # Only use base64 encoded commits to avoid multiline output issues
           echo "commits_b64=$COMMITS_B64" >> $GITHUB_OUTPUT
 
       - name: Amend commit with version
@@ -163,20 +164,32 @@ jobs:
 
           git add package.json
           git commit --amend -m "${NEW_MESSAGE}"
-          git push --force-with-lease origin main
+
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            echo "🔍 DRY RUN: Would push amended commit to main"
+          else
+            git push --force-with-lease origin main
+          fi
 
       - name: Create tag
         run: |
           TAG="${{ steps.bump_version.outputs.tag }}"
           NEW_VERSION="${{ steps.bump_version.outputs.new_version }}"
 
-          # Create tag with commit messages
-          COMMIT_MESSAGES="${{ steps.commit_messages.outputs.commits }}"
+          # Create tag with commit messages (decode from base64)
+          COMMIT_MESSAGES=$(echo "${{ steps.commit_messages.outputs.commits_b64 }}" | base64 -d)
 
           TAG_MESSAGE=$(printf "Release %s\n\nChanges in this release:\n%s" "${TAG}" "${COMMIT_MESSAGES}")
 
           git tag -a "${TAG}" -m "${TAG_MESSAGE}"
-          git push origin "${TAG}"
+
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            echo "🔍 DRY RUN: Would push tag ${TAG}"
+            echo "Tag message would be:"
+            echo "${TAG_MESSAGE}"
+          else
+            git push origin "${TAG}"
+          fi
 
       - name: Verify version validation passed
         env:
@@ -215,10 +228,6 @@ jobs:
         run: |
           npm install -g npm@latest
 
-      - name: Install Dependencies
-        run: |
-          npm ci
-
       - name: Configure npm authentication
         run: |
           echo "//registry.npmjs.org/:_authToken=\${NPM_TOKEN}" > .npmrc
@@ -243,18 +252,32 @@ jobs:
 
           RELEASE_BODY=$(printf "## Changes in this release:\n\n%s\n\nReleased as %s" "$FORMATTED_COMMITS" "${{ steps.bump_version.outputs.tag }}")
 
-          echo "changelog<<EOF" >> $GITHUB_OUTPUT
-          echo "$RELEASE_BODY" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          # Use base64 encoding to avoid EOF delimiter issues
+          CHANGELOG_B64=$(echo "$RELEASE_BODY" | base64 -w 0)
+          echo "changelog_b64=$CHANGELOG_B64" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.bump_version.outputs.tag }}
-          body: ${{ steps.changelog.outputs.changelog }}
-          prerelease: ${{ steps.prerelease.outputs.value == 'true' }}
+        if: github.event.inputs.dry_run != 'true'
+        env:
+          CHANGELOG_B64: ${{ steps.changelog.outputs.changelog_b64 }}
+        run: |
+          RELEASE_BODY=$(echo "$CHANGELOG_B64" | base64 -d)
+          gh release create "${{ steps.bump_version.outputs.tag }}" \
+            --title "${{ steps.bump_version.outputs.tag }}" \
+            --notes "$RELEASE_BODY" \
+            ${{ steps.prerelease.outputs.value == 'true' && '--prerelease' || '' }}
+
+      - name: Show GitHub Release Info (Dry Run)
+        if: github.event.inputs.dry_run == 'true'
+        run: |
+          echo "🔍 DRY RUN: Would create GitHub release"
+          echo "Tag: ${{ steps.bump_version.outputs.tag }}"
+          echo "Prerelease: ${{ steps.prerelease.outputs.value == 'true' }}"
+          echo "Release body:"
+          echo "${{ steps.changelog.outputs.changelog_b64 }}" | base64 -d
 
       - name: Publish to npm
+        if: github.event.inputs.dry_run != 'true'
         env:
           NPM_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
           TYPE_GRAPHQL_PRERELEASE: ${{ steps.prerelease.outputs.value }}
@@ -268,14 +291,42 @@ jobs:
 
           npm publish --ignore-scripts --access public --tag "$_tag"
 
+      - name: Show npm Publish Info (Dry Run)
+        if: github.event.inputs.dry_run == 'true'
+        env:
+          TYPE_GRAPHQL_PRERELEASE: ${{ steps.prerelease.outputs.value }}
+        run: |
+          _tag=
+          if [ "$TYPE_GRAPHQL_PRERELEASE" = "true" ]; then
+            _tag="next"
+          else
+            _tag="latest"
+          fi
+
+          echo "🔍 DRY RUN: Would publish to npm"
+          echo "Package: @scope3data/type-graphql@${{ steps.bump_version.outputs.new_version }}"
+          echo "Tag: $_tag"
+          echo "Access: public"
+
       - name: Output summary
         run: |
-          echo "## 🚀 Manual Release Summary" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            echo "## 🔍 Manual Release Summary (DRY RUN)" >> $GITHUB_STEP_SUMMARY
+            echo "- **Mode**: DRY RUN - No changes made" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## 🚀 Manual Release Summary" >> $GITHUB_STEP_SUMMARY
+          fi
           echo "- **Previous Version**: ${{ steps.current_version.outputs.current }}" >> $GITHUB_STEP_SUMMARY
           echo "- **New Version**: ${{ steps.bump_version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Bump Type**: ${{ steps.version_bump.outputs.bump_type }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Tag**: ${{ steps.bump_version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Description**: ${{ github.event.inputs.description || 'None provided' }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Commit**: Amended last commit with version info" >> $GITHUB_STEP_SUMMARY
-          echo "- **GitHub Release**: Created with commit messages" >> $GITHUB_STEP_SUMMARY
-          echo "- **npm Package**: Published successfully" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            echo "- **Commit**: Would amend last commit with version info" >> $GITHUB_STEP_SUMMARY
+            echo "- **GitHub Release**: Would create with commit messages" >> $GITHUB_STEP_SUMMARY
+            echo "- **npm Package**: Would publish successfully" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- **Commit**: Amended last commit with version info" >> $GITHUB_STEP_SUMMARY
+            echo "- **GitHub Release**: Created with commit messages" >> $GITHUB_STEP_SUMMARY
+            echo "- **npm Package**: Published successfully" >> $GITHUB_STEP_SUMMARY
+          fi
