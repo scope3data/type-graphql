@@ -19,6 +19,8 @@ jobs:
     permissions:
       contents: write
       id-token: write
+    env:
+      NPM_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -104,7 +106,6 @@ jobs:
 
       - name: Publish
         env:
-          NPM_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
           TYPE_GRAPHQL_PRERELEASE: ${{ steps.prerelease.outputs.value }}
         run: |
           _tag=
