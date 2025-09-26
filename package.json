@@ -1,5 +1,5 @@
 {
-  "name": "type-graphql",
+  "name": "@scope3data/type-graphql",
   "version": "2.0.0-rc.3",
   "private": false,
   "description": "Create GraphQL schema and resolvers with TypeScript, using classes and decorators!",
@@ -15,11 +15,11 @@
   ],
   "homepage": "https://typegraphql.com",
   "bugs": {
-    "url": "https://github.com/MichalLytek/type-graphql/issues"
+    "url": "https://github.com/scope3data/type-graphql/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/MichalLytek/type-graphql.git"
+    "url": "git+https://github.com/scope3data/type-graphql.git"
   },
   "funding": [
     {
