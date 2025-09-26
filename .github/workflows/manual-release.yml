@@ -1,0 +1,254 @@
+name: Manual Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: "Type of release"
+        required: true
+        default: "patch"
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      description:
+        description: "Release description (optional)"
+        required: false
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-main
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  actions: write
+  id-token: write
+
+jobs:
+  complete-release:
+    name: Complete Manual Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Configure Git
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+      - name: Get current version
+        id: current_version
+        run: |
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          echo "current=${CURRENT_VERSION}" >> $GITHUB_OUTPUT
+          echo "Current version: ${CURRENT_VERSION}"
+
+      - name: Set version bump type
+        id: version_bump
+        run: |
+          BUMP_TYPE="${{ github.event.inputs.release_type }}"
+          echo "bump_type=${BUMP_TYPE}" >> $GITHUB_OUTPUT
+          echo "Selected release type: ${BUMP_TYPE}"
+
+      - name: Bump version
+        id: bump_version
+        run: |
+          CURRENT_VERSION="${{ steps.current_version.outputs.current }}"
+          BUMP_TYPE="${{ steps.version_bump.outputs.bump_type }}"
+
+          IFS='.' read -ra VERSION_PARTS <<< "$CURRENT_VERSION"
+          MAJOR=${VERSION_PARTS[0]}
+          MINOR=${VERSION_PARTS[1]}
+          PATCH=${VERSION_PARTS[2]}
+
+          case $BUMP_TYPE in
+            "major")
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            "minor")
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            "patch")
+              PATCH=$((PATCH + 1))
+              ;;
+          esac
+
+          NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          echo "new_version=${NEW_VERSION}" >> $GITHUB_OUTPUT
+          echo "tag=v${NEW_VERSION}" >> $GITHUB_OUTPUT
+
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.version = '${NEW_VERSION}';
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+
+      - name: Collect commit messages for release
+        id: commit_messages
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+
+          if [[ -z "$LAST_TAG" ]]; then
+            git log --pretty=format:"- %s" --no-merges > /tmp/commits.txt
+          else
+            git log ${LAST_TAG}..HEAD --pretty=format:"- %s" --no-merges > /tmp/commits.txt
+          fi
+
+          echo "Raw commits:"
+          cat /tmp/commits.txt
+
+          # Use base64 encoding to safely pass commit messages through JSON
+          COMMITS_B64=$(base64 -w 0 /tmp/commits.txt)
+
+          echo "commits<<EOF" >> $GITHUB_OUTPUT
+          cat /tmp/commits.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "commits_b64=$COMMITS_B64" >> $GITHUB_OUTPUT
+
+      - name: Amend commit with version
+        run: |
+          NEW_VERSION="${{ steps.bump_version.outputs.new_version }}"
+          CURRENT_MESSAGE=$(git log -1 --pretty=%B)
+          NEW_MESSAGE="${CURRENT_MESSAGE} [v${NEW_VERSION}]"
+
+          git add package.json
+          git commit --amend -m "${NEW_MESSAGE}"
+          git push --force-with-lease origin main
+
+      - name: Create tag
+        run: |
+          TAG="${{ steps.bump_version.outputs.tag }}"
+          NEW_VERSION="${{ steps.bump_version.outputs.new_version }}"
+
+          # Create tag with commit messages
+          COMMIT_MESSAGES="${{ steps.commit_messages.outputs.commits }}"
+
+          TAG_MESSAGE=$(printf "Release %s\n\nChanges in this release:\n%s" "${TAG}" "${COMMIT_MESSAGES}")
+
+          git tag -a "${TAG}" -m "${TAG_MESSAGE}"
+          git push origin "${TAG}"
+
+      - name: Verify version validation passed
+        env:
+          TYPE_GRAPHQL_VERSION: ${{ steps.bump_version.outputs.tag }}
+        run: |
+          echo "Verifying release for version: $TYPE_GRAPHQL_VERSION"
+
+          if ! printf "%s\n" "$TYPE_GRAPHQL_VERSION" | grep -q -P '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(alpha|beta|rc)\.(0|[1-9][0-9]*))?$'; then
+            printf '[ERROR]: Invalid version tag format (%s)\n' "$TYPE_GRAPHQL_VERSION"
+            exit 1
+          fi
+
+          echo "✅ Version tag format is valid"
+
+      - name: Determine if version is prerelease
+        id: prerelease
+        env:
+          TYPE_GRAPHQL_VERSION: ${{ steps.bump_version.outputs.tag }}
+        run: |
+          _prerelease=
+          if printf "%s\n" "$TYPE_GRAPHQL_VERSION" | grep -q -P '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'; then
+            _prerelease=false
+          else
+            _prerelease=true
+          fi
+
+          printf 'value=%s\n' "$_prerelease" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node.js for publishing
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install latest npm
+        run: |
+          npm install -g npm@latest
+
+      - name: Install Dependencies
+        run: |
+          npm ci
+
+      - name: Configure npm authentication
+        run: |
+          echo "//registry.npmjs.org/:_authToken=\${NPM_TOKEN}" > .npmrc
+
+      - name: Prepare package
+        run: |
+          npm run prepublishOnly
+        env:
+          TYPE_GRAPHQL_REF: ${{ steps.bump_version.outputs.tag }}
+
+      - name: Format commit messages for release
+        id: changelog
+        run: |
+          COMMITS_B64="${{ steps.commit_messages.outputs.commits_b64 }}"
+
+          if [ -z "$COMMITS_B64" ]; then
+            echo "No commits provided"
+            FORMATTED_COMMITS="No changes listed"
+          else
+            FORMATTED_COMMITS=$(echo "$COMMITS_B64" | base64 -d)
+          fi
+
+          RELEASE_BODY=$(printf "## Changes in this release:\n\n%s\n\nReleased as %s" "$FORMATTED_COMMITS" "${{ steps.bump_version.outputs.tag }}")
+
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$RELEASE_BODY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.bump_version.outputs.tag }}
+          body: ${{ steps.changelog.outputs.changelog }}
+          prerelease: ${{ steps.prerelease.outputs.value == 'true' }}
+
+      - name: Publish to npm
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
+          TYPE_GRAPHQL_PRERELEASE: ${{ steps.prerelease.outputs.value }}
+        run: |
+          _tag=
+          if [ "$TYPE_GRAPHQL_PRERELEASE" = "true" ]; then
+            _tag="next"
+          else
+            _tag="latest"
+          fi
+
+          npm publish --ignore-scripts --access public --tag "$_tag"
+
+      - name: Output summary
+        run: |
+          echo "## 🚀 Manual Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Previous Version**: ${{ steps.current_version.outputs.current }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **New Version**: ${{ steps.bump_version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Bump Type**: ${{ steps.version_bump.outputs.bump_type }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tag**: ${{ steps.bump_version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Description**: ${{ github.event.inputs.description || 'None provided' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: Amended last commit with version info" >> $GITHUB_STEP_SUMMARY
+          echo "- **GitHub Release**: Created with commit messages" >> $GITHUB_STEP_SUMMARY
+          echo "- **npm Package**: Published successfully" >> $GITHUB_STEP_SUMMARY
