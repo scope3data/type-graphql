@@ -58,12 +58,12 @@ jobs:
         id: commits
         run: |
           latest_tag="${{ steps.latest_release.outputs.latest_tag }}"
-          if [ "$latest_tag" = "v0.0.0" ]; then
-            # If no previous release, get all commits
-            commits=$(git log --oneline --pretty=format:"%s" | head -10)
-          else
-            # Get commits since last release
+          if git rev-parse "$latest_tag" >/dev/null 2>&1; then
+            # Tag exists, get commits since last release
             commits=$(git log ${latest_tag}..HEAD --oneline --pretty=format:"%s")
+          else
+            # Tag does not exist, get all commits
+            commits=$(git log --oneline --pretty=format:"%s" | head -10)
           fi
 
           echo "Commits since $latest_tag:"
