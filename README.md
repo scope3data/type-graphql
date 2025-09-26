@@ -3,6 +3,45 @@
 ![logo](./images/logo.png)
 <!-- prettier-ignore-end -->
 
+---
+
+## Performance-Optimized Fork by Scope3
+
+> **Context**: This is a high-performance fork maintained by [Scope3](https://github.com/scope3data) with significant optimization improvements. Our changes have been submitted as [PR #1779](https://github.com/MichalLytek/type-graphql/pull/1779) to the original repository but remain unmerged after 6+ months.
+
+### Performance Improvements
+
+**Problem**: Schema generation was exponentially slow for large schemas, taking 30+ seconds with 3k-15k metadata objects due to repeated O(n) array lookups.
+
+**Solution**: Implemented HashMap-based caching system converting O(n) operations to O(1) lookups throughout the metadata build process.
+
+**Results**:
+
+- `buildClassMetadata`: 31.3s → 268ms (116x faster)
+- `buildFieldResolverMetadata`: 314ms → 39ms (8x faster)
+- `buildResolversMetadata`: 1.4s → 126ms (11x faster)
+
+### Installation
+
+```bash
+# Add to .npmrc
+@scope3data:registry=https://npm.pkg.github.com
+
+# Install the package
+npm install @scope3data/type-graphql
+```
+
+### What's Coming
+
+- Prisma 6 support – Upgrading to the latest Prisma version
+- GraphQL 16.11 – Latest GraphQL version with improved performance and features
+
+### Compatibility
+
+100% backward compatible – drop-in replacement for the original `type-graphql` package.
+
+---
+
 # TypeGraphQL
 
 [![release](https://github.com/MichalLytek/type-graphql/actions/workflows/release.yml/badge.svg)](https://github.com/MichalLytek/type-graphql/actions/workflows/release.yml)
