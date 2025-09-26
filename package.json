@@ -194,6 +194,6 @@
   "publishConfig": {
     "access": "public",
     "provenance": false,
-    "registry": "https://npm.pkg.github.com"
+    "registry": "https://registry.npmjs.org"
   }
 }

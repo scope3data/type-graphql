@@ -53,9 +53,6 @@ If you want more technical details or code samples, see the source or reach out 
 ### Installation
 
 ```bash
-# Add to .npmrc
-@scope3data:registry=https://npm.pkg.github.com
-
 # Install with npm
 npm install @scope3data/type-graphql
 

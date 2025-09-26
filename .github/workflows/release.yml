@@ -11,16 +11,14 @@ concurrency:
 permissions:
   pull-requests: write
   contents: read
-  packages: write
 
 jobs:
   release:
-    name: Release package on GitHub Packages
+    name: Release package to npm
     runs-on: ubuntu-latest
     permissions:
       contents: write
       id-token: write
-      packages: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -59,7 +57,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22.x
-          registry-url: "https://npm.pkg.github.com"
+          registry-url: "https://registry.npmjs.org"
 
       - name: Install latest npm
         run: |
@@ -102,7 +100,7 @@ jobs:
 
       - name: Publish
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
           TYPE_GRAPHQL_PRERELEASE: ${{ steps.prerelease.outputs.value }}
         run: |
           _tag=
@@ -112,4 +110,4 @@ jobs:
             _tag="latest"
           fi
 
-          npm publish --ignore-scripts --tag "$_tag"
+          npm publish --ignore-scripts --access public --tag "$_tag"
