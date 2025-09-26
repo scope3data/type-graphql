@@ -31,6 +31,20 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_branch }}
 
+      - name: Verify version validation passed
+        env:
+          TYPE_GRAPHQL_VERSION: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          echo "Verifying release for version: $TYPE_GRAPHQL_VERSION"
+
+          # Ensure this is a valid version tag format
+          if ! printf "%s\n" "$TYPE_GRAPHQL_VERSION" | grep -q -P '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(alpha|beta|rc)\.(0|[1-9][0-9]*))?$'; then
+            printf '[ERROR]: Invalid version tag format (%s)\n' "$TYPE_GRAPHQL_VERSION"
+            exit 1
+          fi
+
+          echo "✅ Version tag format is valid"
+
       - name: Determine if version is prerelease
         id: prerelease
         env:

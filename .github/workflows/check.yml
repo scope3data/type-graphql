@@ -103,8 +103,6 @@ jobs:
 
   check:
     name: Build & Lint & Test
-    needs: version
-    if: always() && (needs.version.result == 'success' || needs.version.result == 'skipped')
     runs-on: ubuntu-latest
     strategy:
       fail-fast: true
