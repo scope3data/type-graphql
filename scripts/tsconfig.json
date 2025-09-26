@@ -2,9 +2,6 @@
   "extends": "../tsconfig.json",
   "compilerOptions": {
     "noEmit": true,
-    "target": "ESNext",
-    "module": "CommonJS",
-    "moduleResolution": "node",
     "types": ["node", "glob", "yargs"],
     "esModuleInterop": true,
     "skipLibCheck": true
