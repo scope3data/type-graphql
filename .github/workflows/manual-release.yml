@@ -1,15 +1,21 @@
-name: Auto Release
+name: Manual Release
 
 on:
-  push:
-    branches:
-      - main
-    paths-ignore:
-      - "**.md"
-      - "website/**"
-      - "docs/**"
-      - ".github/**"
-      - "!.github/workflows/**"
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: "Type of release"
+        required: true
+        default: "patch"
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      description:
+        description: "Release description (optional)"
+        required: false
+        type: string
 
 concurrency:
   group: ${{ github.workflow }}-main
@@ -18,15 +24,16 @@ concurrency:
 permissions:
   contents: write
   actions: write
+  id-token: write
 
 jobs:
-  auto-release:
-    name: Auto Version Bump and Release
+  complete-release:
+    name: Complete Manual Release
     runs-on: ubuntu-latest
-    if: ${{ !contains(github.event.head_commit.message, '[v') && github.event.head_commit.author.name != 'GitHub Action' && !contains(github.event.head_commit.message, '] [v') }}
     permissions:
       contents: write
       actions: write
+      id-token: write
 
     steps:
       - name: Checkout code
@@ -55,28 +62,12 @@ jobs:
           echo "current=${CURRENT_VERSION}" >> $GITHUB_OUTPUT
           echo "Current version: ${CURRENT_VERSION}"
 
-      - name: Determine version bump
+      - name: Set version bump type
         id: version_bump
         run: |
-          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-
-          if [[ -z "$LAST_TAG" ]]; then
-            COMMITS=$(git log --pretty=format:"%s" --no-merges)
-          else
-            COMMITS=$(git log ${LAST_TAG}..HEAD --pretty=format:"%s" --no-merges)
-          fi
-
-          BUMP_TYPE="patch"
-
-          if echo "$COMMITS" | grep -qiE "(BREAKING CHANGE|!:|breaking:|major:|bump.*major)"; then
-            BUMP_TYPE="major"
-          elif echo "$COMMITS" | grep -qiE "(feat:|feature:|minor:|bump.*minor)"; then
-            BUMP_TYPE="minor"
-          else
-            BUMP_TYPE="patch"
-          fi
-
+          BUMP_TYPE="${{ github.event.inputs.release_type }}"
           echo "bump_type=${BUMP_TYPE}" >> $GITHUB_OUTPUT
+          echo "Selected release type: ${BUMP_TYPE}"
 
       - name: Bump version
         id: bump_version
@@ -148,7 +139,7 @@ jobs:
           git commit --amend -m "${NEW_MESSAGE}"
           git push --force-with-lease origin main
 
-      - name: Create tag and trigger release
+      - name: Create tag
         run: |
           TAG="${{ steps.bump_version.outputs.tag }}"
           NEW_VERSION="${{ steps.bump_version.outputs.new_version }}"
@@ -161,19 +152,104 @@ jobs:
           git tag -a "${TAG}" -m "${TAG_MESSAGE}"
           git push origin "${TAG}"
 
+      - name: Verify version validation passed
+        env:
+          TYPE_GRAPHQL_VERSION: ${{ steps.bump_version.outputs.tag }}
+        run: |
+          echo "Verifying release for version: $TYPE_GRAPHQL_VERSION"
+
+          if ! printf "%s\n" "$TYPE_GRAPHQL_VERSION" | grep -q -P '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(alpha|beta|rc)\.(0|[1-9][0-9]*))?$'; then
+            printf '[ERROR]: Invalid version tag format (%s)\n' "$TYPE_GRAPHQL_VERSION"
+            exit 1
+          fi
+
+          echo "✅ Version tag format is valid"
+
+      - name: Determine if version is prerelease
+        id: prerelease
+        env:
+          TYPE_GRAPHQL_VERSION: ${{ steps.bump_version.outputs.tag }}
+        run: |
+          _prerelease=
+          if printf "%s\n" "$TYPE_GRAPHQL_VERSION" | grep -q -P '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'; then
+            _prerelease=false
+          else
+            _prerelease=true
+          fi
+
+          printf 'value=%s\n' "$_prerelease" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node.js for publishing
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install latest npm
+        run: |
+          npm install -g npm@latest
+
+      - name: Install Dependencies
+        run: |
+          npm ci
+
+      - name: Configure npm authentication
+        run: |
+          echo "//registry.npmjs.org/:_authToken=\${NPM_TOKEN}" > .npmrc
+
+      - name: Prepare package
+        run: |
+          npm run prepublishOnly
+        env:
+          TYPE_GRAPHQL_REF: ${{ steps.bump_version.outputs.tag }}
+
+      - name: Format commit messages for release
+        id: changelog
+        run: |
           COMMITS_B64="${{ steps.commit_messages.outputs.commits_b64 }}"
-          curl -X POST \
-            -H "Accept: application/vnd.github.v3+json" \
-            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            https://api.github.com/repos/${{ github.repository }}/dispatches \
-            -d "{\"event_type\":\"release\",\"client_payload\":{\"tag\":\"${TAG}\",\"version\":\"${NEW_VERSION}\",\"commits_b64\":\"${COMMITS_B64}\"}}"
+
+          if [ -z "$COMMITS_B64" ]; then
+            echo "No commits provided"
+            FORMATTED_COMMITS="No changes listed"
+          else
+            FORMATTED_COMMITS=$(echo "$COMMITS_B64" | base64 -d)
+          fi
+
+          RELEASE_BODY=$(printf "## Changes in this release:\n\n%s\n\nReleased as %s" "$FORMATTED_COMMITS" "${{ steps.bump_version.outputs.tag }}")
+
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$RELEASE_BODY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.bump_version.outputs.tag }}
+          body: ${{ steps.changelog.outputs.changelog }}
+          prerelease: ${{ steps.prerelease.outputs.value == 'true' }}
+
+      - name: Publish to npm
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
+          TYPE_GRAPHQL_PRERELEASE: ${{ steps.prerelease.outputs.value }}
+        run: |
+          _tag=
+          if [ "$TYPE_GRAPHQL_PRERELEASE" = "true" ]; then
+            _tag="next"
+          else
+            _tag="latest"
+          fi
+
+          npm publish --ignore-scripts --access public --tag "$_tag"
 
       - name: Output summary
         run: |
-          echo "## 🚀 Auto Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "## 🚀 Manual Release Summary" >> $GITHUB_STEP_SUMMARY
           echo "- **Previous Version**: ${{ steps.current_version.outputs.current }}" >> $GITHUB_STEP_SUMMARY
           echo "- **New Version**: ${{ steps.bump_version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Bump Type**: ${{ steps.version_bump.outputs.bump_type }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Tag**: ${{ steps.bump_version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Description**: ${{ github.event.inputs.description || 'None provided' }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Commit**: Amended last commit with version info" >> $GITHUB_STEP_SUMMARY
-          echo "- **Next Step**: Release workflow triggered via repository dispatch" >> $GITHUB_STEP_SUMMARY
+          echo "- **GitHub Release**: Created with commit messages" >> $GITHUB_STEP_SUMMARY
+          echo "- **npm Package**: Published successfully" >> $GITHUB_STEP_SUMMARY
