@@ -132,6 +132,10 @@ jobs:
           git add package.json
           git commit -m "release: $new_version"
 
+          # Website-related operations (commented out)
+          # npm run --prefix ./website new-release --release=$new_version
+          # git add -A .
+
           # Create and push tag
           git tag "v$new_version"
           git push origin main
