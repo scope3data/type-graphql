@@ -54,13 +54,13 @@ If you want more technical details or code samples, see the source or reach out 
 
 ```bash
 # Install with npm
-npm install @scope3data/type-graphql
+npm install @scope3/type-graphql
 
 # Install with Yarn
-yarn add @scope3data/type-graphql
+yarn add @scope3/type-graphql
 
 # Install with PNPM
-pnpm add @scope3data/type-graphql
+pnpm add @scope3/type-graphql
 ```
 
 ### What's Coming
@@ -71,6 +71,45 @@ pnpm add @scope3data/type-graphql
 ### Compatibility
 
 100% backward compatible – drop-in replacement for the original `type-graphql` package.
+
+#### Setting up Import Aliases for Drop-in Compatibility
+
+To seamlessly migrate existing code without changing import statements throughout your codebase, you can set up a path alias in your `tsconfig.json`:
+
+```json
+{
+  "compilerOptions": {
+    "paths": {
+      "type-graphql": ["@scope3/type-graphql"]
+    }
+  }
+}
+```
+
+This allows you to continue using:
+
+```typescript
+import { Resolver, Query, Field, ObjectType } from "type-graphql";
+```
+
+Instead of having to update all imports to:
+
+```typescript
+import { Resolver, Query, Field, ObjectType } from "@scope3/type-graphql";
+```
+
+**Note:** Make sure the `baseUrl` is set in your `tsconfig.json` for path mapping to work properly:
+
+```json
+{
+  "compilerOptions": {
+    "baseUrl": "./",
+    "paths": {
+      "type-graphql": ["@scope3/type-graphql"]
+    }
+  }
+}
+```
 
 ---
 
