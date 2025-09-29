@@ -300,7 +300,7 @@ jobs:
           fi
 
           echo "🔍 DRY RUN: Would publish to npm"
-          echo "Package: @scope3data/type-graphql@${{ steps.bump_version.outputs.new_version }}"
+          echo "Package: @scope3/type-graphql@${{ steps.bump_version.outputs.new_version }}"
           echo "Tag: $_tag"
           echo "Access: public"
 
