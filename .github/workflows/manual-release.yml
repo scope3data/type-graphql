@@ -26,11 +26,6 @@ concurrency:
   group: ${{ github.workflow }}-main
   cancel-in-progress: false
 
-permissions:
-  contents: write
-  actions: write
-  id-token: write
-
 jobs:
   complete-release:
     name: Complete Manual Release
@@ -260,6 +255,7 @@ jobs:
         if: github.event.inputs.dry_run != 'true'
         env:
           CHANGELOG_B64: ${{ steps.changelog.outputs.changelog_b64 }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           RELEASE_BODY=$(echo "$CHANGELOG_B64" | base64 -d)
           gh release create "${{ steps.bump_version.outputs.tag }}" \
