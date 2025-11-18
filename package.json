@@ -165,7 +165,7 @@
     "lint-staged": "^15.2.8",
     "lodash.merge": "^4.6.2",
     "markdownlint": "^0.34.0",
-    "markdownlint-cli": "^0.41.0",
+    "markdownlint-cli": "^0.45.0",
     "mongoose": "^8.5.2",
     "npm-run-all": "^4.1.5",
     "pg": "^8.12.0",
